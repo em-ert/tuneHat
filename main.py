@@ -13,6 +13,9 @@ except ImportError:
 
 if has_gpio:
     from pyky040 import pyky040
+else:
+    from pynput import keyboard
+    from pynput.keyboard import Key
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -55,12 +58,28 @@ def dec_global_volume(count):
     logger.info("Decrementing global volume")
     subprocess.Popen(["pactl", "set-sink-volume", "0", "-" + str(VOLUME_STEP) + "%"])
 
+if has_gpio:
+    encoder = pyky040.Encoder(CLK=CLK_PIN, DT=DT_PIN, SW=SW_PIN)
+    encoder.setup(scale_min=0, scale_max=5, step=1, inc_callback=increment, dec_callback=decrement, sw_callback=select)
+    encoder_thread = threading.Thread(target=encoder.watch)
 
-encoder = pyky040.Encoder(CLK=CLK_PIN, DT=DT_PIN, SW=SW_PIN)
-encoder.setup(scale_min=0, scale_max=5, step=1, inc_callback=increment, dec_callback=decrement, sw_callback=select)
-encoder_thread = threading.Thread(target=encoder.watch)
+    encoder_thread.start()
+else:
+    def on_key_release(key):
+        if key == Key.right:
+            print("Right key clicked")
+        elif key == Key.left:
+            print("Left key clicked")
+        elif key == Key.up:
+            print("Up key clicked")
+        elif key == Key.down:
+            print("Down key clicked")
+        elif key == Key.esc:
+            exit()
 
-encoder_thread.start()
+
+    with keyboard.Listener(on_release=on_key_release) as listener:
+        listener.join()
 
 # Do other stuff
 print('Other stuff...')
