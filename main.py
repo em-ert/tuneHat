@@ -25,6 +25,16 @@ CLK_PIN = 17
 DT_PIN = 18
 SW_PIN = 27
 
+lcd = CharLCD(pin_rs=26,
+              pin_e=19,
+              pins_data=[13, 6, 5, 11],
+              numbering_mode=GPIO.BCM,
+              cols=16,
+              rows=2,
+              dotsize=8,
+              auto_linebreaks=True)
+lcd.cursorMode = "line"
+
 
 INIT_0_MENU = ["Main", "Press for menu"]
 MAIN_1_MENU = ["<back>", "Play", "Settings"]
@@ -83,5 +93,5 @@ else:
 
 # Do other stuff
 print('Other stuff...')
-while True:
-    sleep(1000)
+sleep(10)
+exit()
