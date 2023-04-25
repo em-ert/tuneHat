@@ -59,19 +59,36 @@ def change(count):
 
 def select():
     global encoder, OPTION, MENU_LEVEL, CURR_MENU
+
+    # log info about condition of menu
     logger.info("Selection occurred")
     logger.info("Menu Level:" + str(MENU_LEVEL) + ", Option: " + str(OPTION))
+
+    # handle back button
     if (MENU_LEVEL > 0 and OPTION == 0):
         MENU_LEVEL -= 1
     else:
         MENU_LEVEL += 1
+
+    # reset option to 0
     OPTION = 0
+
+    # set current menu value
     CURR_MENU = MENUS[MENU_LEVEL]
-    encoder.setup(scale_min=0, scale_max=(len(MENUS[MENU_LEVEL]) - 1))
+
+    # handle main menu
     if (MENU_LEVEL == 0):
+        encoder.setup(scale_min=0, scale_max=(len(MENUS[MENU_LEVEL]) - 1))
         lcd.clear()
         lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
+    # handle volume menu
+    elif (MENU_LEVEL == 10):    # change this value
+        encoder.setup(scale_min=0, scale_max=100)
+        lcd.clear()
+        lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
+    # handle normal menu stuff
     else:
+        encoder.setup(scale_min=0, scale_max=(len(MENUS[MENU_LEVEL]) - 1))
         lcd.clear()
         lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
 
