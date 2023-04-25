@@ -13,9 +13,7 @@ except ImportError:
 
 if has_gpio:
     from pyky040 import pyky040
-else:
-    from pynput import keyboard
-    from pynput.keyboard import Key
+    from RPLCD import CharLCD
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -33,65 +31,86 @@ lcd = CharLCD(pin_rs=26,
               rows=2,
               dotsize=8,
               auto_linebreaks=True)
-lcd.cursorMode = "line"
 
-
-INIT_0_MENU = ["Main", "Press for menu"]
+INIT_0_MENU = ["Main", "<press for menu>"]
 MAIN_1_MENU = ["<back>", "Play", "Settings"]
 SETTINGS_2_MENU = ["<back>", "Volume", "AI", "MIDI"]
 MENUS = [INIT_0_MENU, MAIN_1_MENU, SETTINGS_2_MENU]
 MENU_LEVEL = 0
 OPTION = 0
+CURR_MENU = INIT_0_MENU
 
-def increment(count):
-    global MENU_LEVEL
+
+def change(count):
+    global OPTION, CURR_MENU, MENU_LEVEL
     logger.info(count)
+    OPTION = count
+    logger.info("Menu Level:" + str(MENU_LEVEL) + ", Option: " + str(OPTION))
+    if (MENU_LEVEL == 0):
+        lcd.clear()
+        lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
+    elif (OPTION < (len(CURR_MENU) - 1)):
+        lcd.clear()
+        lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
+    else:
+        lcd.clear()
+        lcd.write_string("  " + CURR_MENU[OPTION - 1] + "\n\r" + "* " + CURR_MENU[OPTION])
 
-
-def decrement(count):
-    global MENU_LEVEL
-    logger.info(count)
-    if(MENU_LEVEL >= 0 and MENU_LEVEL <= 3):
-        MENU_LEVEL += 1
 
 def select():
-    logger.info("Selection occured")
-    global encoder
-    encoder.setup(scale_min=0, scale_max=10)
+    global encoder, OPTION, MENU_LEVEL, CURR_MENU
+    logger.info("Selection occurred")
+    logger.info("Menu Level:" + str(MENU_LEVEL) + ", Option: " + str(OPTION))
+    if (MENU_LEVEL > 0 and OPTION == 0):
+        MENU_LEVEL -= 1
+    else:
+        MENU_LEVEL += 1
+    OPTION = 0
+    CURR_MENU = MENUS[MENU_LEVEL]
+    encoder.setup(scale_min=0, scale_max=(len(MENUS[MENU_LEVEL]) - 1))
+    if (MENU_LEVEL == 0):
+        lcd.clear()
+        lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
+    else:
+        lcd.clear()
+        lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
+
 
 def inc_global_volume(count):
     logger.info("Incrementing global volume")
     # Using Popoen for async (we do not want to perturbate the audio)
     subprocess.Popen(["pactl", "set-sink-volume", "0", "+" + str(VOLUME_STEP) + "%"])
 
+
 def dec_global_volume(count):
     logger.info("Decrementing global volume")
     subprocess.Popen(["pactl", "set-sink-volume", "0", "-" + str(VOLUME_STEP) + "%"])
 
-if has_gpio:
-    encoder = pyky040.Encoder(CLK=CLK_PIN, DT=DT_PIN, SW=SW_PIN)
-    encoder.setup(scale_min=0, scale_max=5, step=1, inc_callback=increment, dec_callback=decrement, sw_callback=select)
-    encoder_thread = threading.Thread(target=encoder.watch)
 
-    encoder_thread.start()
-else:
-    def on_key_release(key):
-        if key == Key.right:
-            print("Right key clicked")
-        elif key == Key.left:
-            print("Left key clicked")
-        elif key == Key.up:
-            print("Up key clicked")
-        elif key == Key.down:
-            print("Down key clicked")
-        elif key == Key.esc:
-            exit()
+try:
+    lcd.cursorMode = "hide"
+    lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
+    lcd.cursor_pos = (0, 0)
+
+    if has_gpio:
+        encoder = pyky040.Encoder(CLK=CLK_PIN, DT=DT_PIN, SW=SW_PIN)
+        encoder.setup(scale_min=0, scale_max=1, step=1, chg_callback=change, sw_callback=select)
+        encoder_thread = threading.Thread(target=encoder.watch)
+
+        encoder_thread.start()
+
+    # Do other stuff
+    print('Other stuff...')
+    while True:
+        sleep(1000)
 
 
-    with keyboard.Listener(on_release=on_key_release) as listener:
-        listener.join()
+except KeyboardInterrupt: # If CTRL+C is pressed, exit cleanly:
+   print("Keyboard interrupt")
 
-# Do other stuff
-print('Other stuff...')
-sleep(10)
-exit()
+except:
+   print("Error")
+
+finally:
+   print("clean up")
+   GPIO.cleanup() # cleanup all GPIO
