@@ -32,12 +32,17 @@ lcd = CharLCD(pin_rs=26,
               dotsize=8,
               auto_linebreaks=True)
 
-INIT_0_MENU = ["Main", "<press for menu>"]
-MAIN_1_MENU = ["<back>", "Play", "Settings"]
-SETTINGS_2_MENU = ["<back>", "Volume", "AI", "MIDI"]
-MENUS = [INIT_0_MENU, MAIN_1_MENU, SETTINGS_2_MENU]
 MENU_LEVEL = 0
 OPTION = 0
+VOLUME = 0
+INIT_0_MENU = ["Main", "<press for menu>"]
+MAIN_1_MENU = ["<back>", "Play", "Settings"]
+SETTINGS_2_MENU = ["<back>", "AI", "Volume", "MIDI"]
+AI_3_MENU = ["<back>", "AI", "Volume", "MIDI"]
+VOLUME_4_MENU = [VOLUME]
+MIDI_5_MENU = [""]
+
+MENUS = [INIT_0_MENU, MAIN_1_MENU, SETTINGS_2_MENU, AI_3_MENU, VOLUME_4_MENU, MIDI_5_MENU]
 CURR_MENU = INIT_0_MENU
 
 
@@ -58,15 +63,18 @@ def change(count):
 
 
 def select():
-    global encoder, OPTION, MENU_LEVEL, CURR_MENU
+    global encoder, OPTION, MENU_LEVEL, CURR_MENU, VOLUME
 
     # log info about condition of menu
     logger.info("Selection occurred")
     logger.info("Menu Level:" + str(MENU_LEVEL) + ", Option: " + str(OPTION))
 
-    # handle back button
-    if (MENU_LEVEL > 0 and OPTION == 0):
+    # handle back button for levels 2 and under
+    if (MENU_LEVEL > 0 and MENU_LEVEL <= 2 and OPTION == 0):
         MENU_LEVEL -= 1
+    elif (MENU_LEVEL == 2 and OPTION != 0):
+        # Offset menu levels to account for the options
+        MENU_LEVEL ==  2 + OPTION
     else:
         MENU_LEVEL += 1
 
@@ -82,8 +90,9 @@ def select():
         lcd.clear()
         lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
     # handle volume menu
-    elif (MENU_LEVEL == 10):    # change this value
+    elif (MENU_LEVEL == 4):    # for volume
         encoder.setup(scale_min=0, scale_max=100)
+
         lcd.clear()
         lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
     # handle normal menu stuff
@@ -103,6 +112,8 @@ def dec_global_volume(count):
     logger.info("Decrementing global volume")
     subprocess.Popen(["pactl", "set-sink-volume", "0", "-" + str(VOLUME_STEP) + "%"])
 
+def getCurrentSysVolume():
+    output = subprocess.run(["awk -F\"[][]\" '/Left:/ { print $2 }' <(amixer sget Master)"], capture_output=True, text=True).stdout
 
 try:
     lcd.cursorMode = "hide"
