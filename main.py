@@ -1,11 +1,9 @@
-# Import the module and threading
-import threading
-import logging
-import subprocess
-from time import sleep
-import os
+# Import modules
 import alsaaudio
+import logging
+import os
 import shutil
+from time import sleep
 
 try:
     from RPi import GPIO
