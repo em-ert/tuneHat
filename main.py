@@ -5,9 +5,11 @@ import subprocess
 from time import sleep
 import os
 import alsaaudio
+import shutil
 
 try:
     from RPi import GPIO
+
     has_gpio = True
 except ImportError:
     has_gpio = False
@@ -40,12 +42,22 @@ VOLUME = 0
 SUBMENU = False
 
 # Menu arrays
-INIT_0_MENU = ["Main", "<press for menu>"]
-MAIN_1_MENU = ["<back>", "Play", "Settings"]
+INIT_0_MENU = ["TuneFarm", "<press to start>"]
+MAIN_1_MENU = ["<back>", "Play", "Settings", "Exit"]
 SETTINGS_2_MENU = ["<back>", "AI", "Volume", "MIDI"]
-AI_3_MENU = ["<back>", "AI", "Volume", "MIDI"]
+AI_3_MENU = ["<back>", "BPM", "Debug", "Manual", "Jazzy", "Staccato", "Chords", "Follow"]
 VOLUME_4_MENU = [VOLUME]
 MIDI_5_MENU = [""]
+
+# AI Options
+BPM = 120
+DEBUG = False
+MANUAL = False
+JAZZY = False
+STACCATO = False
+CHORDS = False
+FOLLOW = False
+AI_ARRAY = ["back", BPM, DEBUG, MANUAL, JAZZY, STACCATO, CHORDS, FOLLOW]
 
 # Main Menu array and current menu variable
 MENUS = [INIT_0_MENU, MAIN_1_MENU, SETTINGS_2_MENU, AI_3_MENU, VOLUME_4_MENU, MIDI_5_MENU]
@@ -64,6 +76,17 @@ def change(count):
     if (MENU_LEVEL == 4):
         lcd.clear()
         lcd.write_string(str(OPTION))
+    elif (MENU_LEVEL == 10):
+        lcd.clear()
+        lcd.write_string(AI_3_MENU[1] + "\n\r" + str(OPTION))
+    elif (MENU_LEVEL > 10):
+        setting = int(MENU_LEVEL / 10)
+        if OPTION == False:
+            str_value = "False"
+        else:
+            str_value = "True"
+        lcd.clear()
+        lcd.write_string(AI_3_MENU[setting] + "\n\r" + str_value)
     elif (MENU_LEVEL == 0):
         pass
     elif (OPTION < (len(CURR_MENU) - 1)):
@@ -75,41 +98,106 @@ def change(count):
 
 
 def select():
-    global encoder, OPTION, MENU_LEVEL, CURR_MENU, VOLUME, SUBMENU
+    global encoder, OPTION, MENU_LEVEL, CURR_MENU, VOLUME, SUBMENU, AI_ARRAY, MENUS
+    global BPM, DEBUG, MANUAL, JAZZY, STACCATO, CHORDS, FOLLOW
 
     # log info about condition of menu
     logger.info("Selection occurred")
     logger.info("Menu Level:" + str(MENU_LEVEL) + ", Option: " + str(OPTION))
 
-    # handle back button for levels 2 and under
-    if (MENU_LEVEL > 0 and MENU_LEVEL <= 2 and OPTION == 0):
+    # handle back button for levels 3 and under
+    if (MENU_LEVEL > 0 and MENU_LEVEL <= 3 and OPTION == 0):
         MENU_LEVEL -= 1
-    # handle submenus
+    # handle exit into program
+    elif (MENU_LEVEL == 1 and OPTION == 1):
+        lcd.clear()
+        lcd.write_string("TuneFarm\n\r<press for menu>")
+        MENU_LEVEL = 9
+        # SUBMENU = True
+        write_to_settings()
+        # pass
+        raise Exception("Starting up PianoAI...")
+    # handle program end
+    elif (MENU_LEVEL == 1 and OPTION == 3):
+        lcd.clear()
+        lcd.write_string("Thank you for\n\rplaying!")
+        sleep(2.5)
+        lcd.clear()
+        exit(0)
+    # handle settings menus
     elif (MENU_LEVEL == 2 and OPTION != 0):
         # Offset menu levels to account for the options
         MENU_LEVEL = 2 + OPTION
+
+    # handle choosing an AI option
+    elif (MENU_LEVEL == 3 and OPTION != 0):
+        MENU_LEVEL = OPTION * 10
         SUBMENU = True
+
+    elif (MENU_LEVEL == 9):
+        setting = int(MENU_LEVEL / 10)
+        AI_ARRAY[setting] = OPTION
+        # change value in settings file
+        MENU_LEVEL = 3
+        SUBMENU = False
+    # handle changing the value of an AI option - BPM
+    elif (MENU_LEVEL == 10):
+        BPM = OPTION
+        # change value in settings file
+        MENU_LEVEL = 3
+        SUBMENU = False
+        # handle changing the value of an AI option - not BPM
+    elif (MENU_LEVEL > 10):
+        setting = int(MENU_LEVEL / 10)
+        AI_ARRAY[setting] = OPTION
+        # change value in settings file
+        MENU_LEVEL = 3
+        SUBMENU = False
+
     # handle exit from volume menu
     elif (MENU_LEVEL == 4):
         mixer.setvolume(OPTION)
         MENU_LEVEL = 2
+    # handle exit from play
+    elif (MENU_LEVEL == 9):
+        MENU_LEVEL = 0
         SUBMENU = False
     else:
         MENU_LEVEL += 1
 
     # reset option to 0
     OPTION = 0
-    # set current menu value
-    CURR_MENU = MENUS[MENU_LEVEL]
+
+    if not(SUBMENU):
+        # set current menu value
+        CURR_MENU = MENUS[MENU_LEVEL]
 
     # handle initialization menu
     if MENU_LEVEL == 0:
         encoder.setup(scale_min=0, scale_max=1)
         lcd.clear()
         lcd.write_string(INIT_0_MENU[0] + "\n\r" + INIT_0_MENU[1])
+    # handle setup of AI option menu - BPM
+    elif MENU_LEVEL == 10:
+        setting = int(MENU_LEVEL / 10)
+        encoder.setup(scale_min=0, scale_max=200)
+        encoder.counter = BPM
+        lcd.clear()
+        lcd.write_string(AI_3_MENU[setting] + "\n\r" + str(BPM))
+    # handle setup of AI option menu - Other
+    elif MENU_LEVEL > 10:
+        setting = int(MENU_LEVEL / 10)
+        encoder.setup(scale_min=0, scale_max=1)
+        encoder.counter = AI_ARRAY[setting]
+        if AI_ARRAY[setting] == False:
+            str_value = "False"
+        else:
+            str_value = "True"
+        lcd.clear()
+        lcd.write_string(AI_3_MENU[setting] + "\n\r" + str_value)
 
-    # handle initialization of volume menu
-    elif MENU_LEVEL == 4:    # for volume
+    # handle setup of volume menu
+    elif MENU_LEVEL == 4:  # for volume
         m = mixer.getvolume()
         VOLUME = m[0]
         encoder.setup(scale_min=0, scale_max=100)
@@ -124,17 +212,16 @@ def select():
         lcd.write_string("* " + CURR_MENU[OPTION] + "\n\r  " + CURR_MENU[OPTION + 1])
 
 
-def inc_global_volume(count):
-    logger.info("Incrementing global volume")
-    # Using Popoen for async (we do not want to perturbate the audio)
-    subprocess.Popen(["pactl", "set-sink-volume", "0", "+" + str(VOLUME_STEP) + "%"])
-
-
-def dec_global_volume(count):
-    logger.info("Decrementing global volume")
-    subprocess.Popen(["pactl", "set-sink-volume", "0", "-" + str(VOLUME_STEP) + "%"])
+def write_to_settings():
+    for i in range (1, len(AI_ARRAY)-1):
+        SETTINGS_FILE.write(str(AI_ARRAY[i]) + "\n")
+    SETTINGS_FILE.write(str(AI_ARRAY[7]))
 
 try:
+    #shutil.copyfile("Settings/settings.txt", "Settings/user_settings.txt")
+    #SETTINGS_FILE = open("Settings/user_settings.txt", "w")
+    shutil.copyfile("../../tuneHat/Settings/settings.txt", "../../tuneHat/Settings/user_settings.txt")
+    SETTINGS_FILE = open("../../tuneHat/Settings/user_settings.txt", "w")
     lcd.cursorMode = "hide"
     lcd.write_string(CURR_MENU[0] + "\n\r" + CURR_MENU[1])
     lcd.cursor_pos = (0, 0)
@@ -145,21 +232,22 @@ try:
         VOLUME = m[0]
         encoder = pyky040.Encoder(CLK=CLK_PIN, DT=DT_PIN, SW=SW_PIN)
         encoder.setup(scale_min=0, scale_max=1, step=1, chg_callback=change, sw_callback=select)
-        encoder_thread = threading.Thread(target=encoder.watch)
-
-        encoder_thread.start()
+        encoder.watch()
+        # encoder_thread = threading.Thread(target=encoder.watch)
+        # encoder_thread.start()
 
     # Do other stuff
-    print('Other stuff...')
-    while True:
-        sleep(1000)
+    # print('Other stuff...')
+    # while True:
+    # sleep(1000)
 
-except KeyboardInterrupt: # If CTRL+C is pressed, exit cleanly:
-   print("Keyboard interrupt")
+except KeyboardInterrupt:  # If CTRL+C is pressed, exit cleanly:
+    print("Keyboard interrupt")
 
 except:
-   print("Error")
+    print("Error")
 
 finally:
-   print("clean up")
-   GPIO.cleanup() # cleanup all GPIO
+    print("clean up, close settings file")
+    GPIO.cleanup()  # cleanup all GPIO
+    SETTINGS_FILE.close()
